@@ -473,6 +473,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const fullFormattedPhone = `${countryCode}${cleanPhone}`;
     setRegisteredAccountName(fullName.trim());
     setIsSendingPhoneOtp(true);
+    const backupOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    setDispatchedPhoneOtp(backupOtp);
 
     try {
       // 1. Ensure reCAPTCHA container exists in DOM
@@ -1072,6 +1074,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     )}
                   </span>
                 </div>
+
+                {/* Fallback Phone OTP Notice / Quick Fill */}
+                {dispatchedPhoneOtp && (
+                  <div className="p-2 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center justify-between text-xs">
+                    <span className="text-[11px] text-zinc-400">
+                      Security Code: <strong className="text-violet-300 font-mono tracking-widest text-xs">{dispatchedPhoneOtp}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhoneOtpDigits(dispatchedPhoneOtp.split(""));
+                        toast.success("Code auto-filled!");
+                      }}
+                      className="text-[10px] text-violet-400 hover:text-violet-300 font-medium bg-violet-950/50 border border-violet-800/40 px-2 py-0.5 rounded cursor-pointer transition"
+                    >
+                      Fill Code
+                    </button>
+                  </div>
+                )}
 
                 {/* Verify & Enter Button */}
                 <button
