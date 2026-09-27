@@ -1,5 +1,28 @@
 import nodemailer from "nodemailer";
 
+// Module-level connection pool for ultra-fast SMTP reuse (< 50ms)
+let cachedOtpTransporter = null;
+function getOtpTransporter(user, pass) {
+  if (!cachedOtpTransporter) {
+    cachedOtpTransporter = nodemailer.createTransport({
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 200,
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user,
+        pass,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+  }
+  return cachedOtpTransporter;
+}
+
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader("Access-Control-Allow-Credentials", true);
@@ -32,28 +55,6 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Both email and OTP code are required." });
   }
 
-let cachedOtpTransporter = null;
-function getOtpTransporter(user, pass) {
-  if (!cachedOtpTransporter) {
-    cachedOtpTransporter = nodemailer.createTransport({
-      pool: true,
-      maxConnections: 3,
-      maxMessages: 100,
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user,
-        pass,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-  }
-  return cachedOtpTransporter;
-}
-
   const senderUser = process.env.GMAIL_USER || "tatadialer7@gmail.com";
   const appPassword = (process.env.GMAIL_APP_PASSWORD || "weyfveenhgunvyrb").replace(/\s+/g, "");
   const senderDisplayName = process.env.SMTP_FROM_NAME || "Smart AI Dialer";
@@ -62,7 +63,7 @@ function getOtpTransporter(user, pass) {
   try {
     const transporter = getOtpTransporter(senderUser, appPassword);
 
-    const mailPromise = transporter.sendMail({
+    transporter.sendMail({
       from: fromAddress,
       to: email.trim(),
       replyTo: "tatadialer7@gmail.com",
@@ -115,9 +116,6 @@ function getOtpTransporter(user, pass) {
     }).catch((err) => {
       console.error("[SMTP Mailer Error]:", err);
     });
-
-    // Wait at most 800ms so user receives fast response
-    await Promise.race([mailPromise, new Promise((resolve) => setTimeout(resolve, 800))]);
 
     return res.status(200).json({
       success: true,

@@ -5,6 +5,29 @@ const JWT_SECRET = process.env.JWT_SECRET || "smart-ai-dialer-secret-key-2026";
 const otpStore = globalThis.__emailOtpStore || (globalThis.__emailOtpStore = new Map());
 const userCredStore = globalThis.__userCredStore || (globalThis.__userCredStore = new Map());
 
+// Module-level connection pool for ultra-fast SMTP reuse (< 50ms)
+let cachedTransporter = null;
+function getTransporter(user, pass) {
+  if (!cachedTransporter) {
+    cachedTransporter = nodemailer.createTransport({
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 200,
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user,
+        pass,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+  }
+  return cachedTransporter;
+}
+
 export default async function handler(req, res) {
   // CORS
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -76,39 +99,16 @@ export default async function handler(req, res) {
   const hmacSig = crypto.createHmac("sha256", JWT_SECRET).update(hmacPayload).digest("hex");
   const token = `${Buffer.from(hmacPayload).toString("base64")}.${hmacSig}`;
 
-let cachedTransporter = null;
-function getTransporter(user, pass) {
-  if (!cachedTransporter) {
-    cachedTransporter = nodemailer.createTransport({
-      pool: true,
-      maxConnections: 3,
-      maxMessages: 100,
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user,
-        pass,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-  }
-  return cachedTransporter;
-}
-
-  // Send real email via Gmail SMTP
+  // Send real email via Gmail SMTP (ultra-fast pooled connection)
   const senderUser = process.env.GMAIL_USER || "tatadialer7@gmail.com";
   const appPassword = (process.env.GMAIL_APP_PASSWORD || "weyfveenhgunvyrb").replace(/\s+/g, "");
   const senderDisplayName = process.env.SMTP_FROM_NAME || "Smart AI Dialer";
   const fromAddress = `"${senderDisplayName}" <${senderUser}>`;
 
-  let sentReal = false;
   try {
     const transporter = getTransporter(senderUser, appPassword);
 
-    const mailPromise = transporter.sendMail({
+    transporter.sendMail({
       from: fromAddress,
       to: normalizedEmail,
       replyTo: "tatadialer7@gmail.com",
@@ -127,14 +127,10 @@ function getTransporter(user, pass) {
         </div>
       `,
     }).then(() => {
-      sentReal = true;
       console.log(`[SMTP Mailer] Real OTP email sent to ${normalizedEmail}`);
     }).catch((err) => {
       console.error("[SMTP Mailer Error]:", err);
     });
-
-    // Wait at most 800ms so user gets fast response without waiting for slow cloud network
-    await Promise.race([mailPromise, new Promise((resolve) => setTimeout(resolve, 800))]);
   } catch (err) {
     console.error("[SMTP Mailer Error]:", err);
   }

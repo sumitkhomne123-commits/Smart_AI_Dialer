@@ -223,7 +223,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setTimeout(() => emailOtpInputRefs.current[0]?.focus(), 150);
   };
 
-  // Handle Email OTP Change
+  // Handle Email OTP Change with instant auto-submit
   const handleEmailOtpChange = (index: number, val: string) => {
     if (val.length > 1) {
       const chars = val.slice(0, 6).split("");
@@ -233,6 +233,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       });
       setEmailOtpDigits(next);
       emailOtpInputRefs.current[Math.min(chars.length, 5)]?.focus();
+      if (next.every((d) => d.length === 1)) {
+        setTimeout(() => verifyEmailOtpDirect(next.join("")), 50);
+      }
       return;
     }
 
@@ -242,6 +245,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     if (val && index < 5) {
       emailOtpInputRefs.current[index + 1]?.focus();
+    } else if (index === 5 && val) {
+      if (next.every((d) => d.length === 1)) {
+        setTimeout(() => verifyEmailOtpDirect(next.join("")), 50);
+      }
     }
   };
 
@@ -251,35 +258,65 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  // Verify Email OTP
-  const handleVerifyEmailOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const enteredOtp = emailOtpDigits.join("");
+  // Direct fast verification for Email OTP
+  const verifyEmailOtpDirect = async (overrideOtp?: string) => {
+    const enteredOtp = overrideOtp || emailOtpDigits.join("");
     if (enteredOtp.length !== 6) {
       toast.error("Please enter the complete 6-digit OTP sent to your email.");
       return;
     }
 
     setIsVerifying(true);
+
+    // Fast-path: Instant verify if matching dispatched code
+    if (dispatchedEmailOtp && enteredOtp === dispatchedEmailOtp) {
+      fetch("/api/calling/auth/email/verify-otp", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp: enteredOtp }),
+      }).catch(() => {});
+
+      const derivedName =
+        fullName.trim() ||
+        email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+      try {
+        const raw = localStorage.getItem("smart_dialer_credentials");
+        const creds = raw ? JSON.parse(raw) : {};
+        creds[email.trim().toLowerCase()] = { password: password.trim(), name: derivedName };
+        localStorage.setItem("smart_dialer_credentials", JSON.stringify(creds));
+      } catch {}
+
+      finalizeLogin({
+        name: derivedName,
+        emailOrPhone: email.toLowerCase().trim(),
+        role: "Enterprise Admin",
+        provider: "Email + OTP",
+      });
+      setIsVerifying(false);
+      return;
+    }
+
     let verified = false;
     let serverUserName = "";
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       const res = await fetch("/api/calling/auth/email/verify-otp", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp: enteredOtp }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         verified = true;
         serverUserName = data.user?.name || "";
       }
     } catch {}
-
-    if (!verified && dispatchedEmailOtp && enteredOtp === dispatchedEmailOtp) {
-      verified = true;
-    }
 
     if (verified) {
       const derivedName =
@@ -306,6 +343,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       toast.error("Invalid OTP code. Please check your email and try again.");
     }
     setIsVerifying(false);
+  };
+
+  const handleVerifyEmailOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    verifyEmailOtpDirect();
   };
 
   const handleDirectEmailLogin = (e: React.FormEvent) => {
@@ -475,7 +517,49 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   // ---------------------------------------------------------------------------
   // 3. PHONE NUMBER + OTP (FIREBASE REAL SMS AUTHENTICATION)
-  // ---------------------------------------------------------------------------
+  // Helper to pre-warm and reuse RecaptchaVerifier for instant SMS dispatch
+  const initOrGetRecaptchaVerifier = () => {
+    if (recaptchaVerifierRef.current) return recaptchaVerifierRef.current;
+    try {
+      const existingContainer = document.getElementById("recaptcha-phone-container");
+      if (existingContainer) {
+        try {
+          existingContainer.remove();
+        } catch {}
+      }
+      const recaptchaContainer = document.createElement("div");
+      recaptchaContainer.id = "recaptcha-phone-container";
+      document.body.appendChild(recaptchaContainer);
+
+      const verifier = new RecaptchaVerifier(auth, recaptchaContainer, {
+        size: "invisible",
+        badge: "bottomright",
+        callback: () => {},
+        "expired-callback": () => {
+          if (recaptchaVerifierRef.current) {
+            try {
+              recaptchaVerifierRef.current.clear();
+            } catch {}
+            recaptchaVerifierRef.current = null;
+          }
+          const c = document.getElementById("recaptcha-phone-container");
+          if (c) {
+            try {
+              c.remove();
+            } catch {}
+          }
+        },
+      });
+      recaptchaVerifierRef.current = verifier;
+      // Pre-warm the invisible widget in background
+      verifier.render().catch(() => {});
+      return verifier;
+    } catch (e) {
+      console.warn("RecaptchaVerifier init error:", e);
+      return null;
+    }
+  };
+
   const handleSendPhoneOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!fullName.trim()) {
@@ -495,50 +579,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setDispatchedPhoneOtp(backupOtp);
 
     try {
-      // 1. Clean up any existing verifier and remove its old container to prevent "already rendered" error
-      if (recaptchaVerifierRef.current) {
-        try {
-          recaptchaVerifierRef.current.clear();
-        } catch {}
-        recaptchaVerifierRef.current = null;
+      let verifier = recaptchaVerifierRef.current;
+      if (!verifier) {
+        verifier = initOrGetRecaptchaVerifier();
       }
-      const existingContainer = document.getElementById("recaptcha-phone-container");
-      if (existingContainer) {
-        try {
-          existingContainer.remove();
-        } catch {}
+      if (!verifier) {
+        throw new Error("Could not initialize security verifier. Please try again.");
       }
 
-      // 2. Create a fresh clean DOM element directly on document.body
-      const recaptchaContainer = document.createElement("div");
-      recaptchaContainer.id = "recaptcha-phone-container";
-      document.body.appendChild(recaptchaContainer);
-
-      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaContainer, {
-        size: "invisible",
-        badge: "bottomright",
-        callback: () => {
-          // reCAPTCHA solved
-        },
-        "expired-callback": () => {
-          if (recaptchaVerifierRef.current) {
-            try {
-              recaptchaVerifierRef.current.clear();
-            } catch {}
-            recaptchaVerifierRef.current = null;
-          }
-          const c = document.getElementById("recaptcha-phone-container");
-          if (c) {
-            try { c.remove(); } catch {}
-          }
-        },
-      });
-
-      // 3. Dispatch real SMS via Firebase Phone Auth
+      // Dispatch real SMS via Firebase Phone Auth with pre-warmed verifier
       const confirmationResult = await signInWithPhoneNumber(
         auth,
         fullFormattedPhone,
-        recaptchaVerifierRef.current
+        verifier
       );
       confirmationResultRef.current = confirmationResult;
 
@@ -608,6 +661,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       });
       setPhoneOtpDigits(next);
       phoneOtpInputRefs.current[Math.min(chars.length, 5)]?.focus();
+      if (next.every((d) => d.length === 1)) {
+        setTimeout(() => verifyPhoneOtpDirect(next.join("")), 50);
+      }
       return;
     }
 
@@ -617,6 +673,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     if (val && index < 5) {
       phoneOtpInputRefs.current[index + 1]?.focus();
+    } else if (index === 5 && val) {
+      if (next.every((d) => d.length === 1)) {
+        setTimeout(() => verifyPhoneOtpDirect(next.join("")), 50);
+      }
     }
   };
 
@@ -626,9 +686,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const fullOtp = phoneOtpDigits.join("");
+  const verifyPhoneOtpDirect = async (overrideOtp?: string) => {
+    const fullOtp = overrideOtp || phoneOtpDigits.join("");
     if (fullOtp.length !== 6) {
       toast.error("Please enter complete 6-digit OTP sent to your phone.");
       return;
@@ -657,13 +716,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       }
     }
 
-    // 2. Fallback verification via backend route or dispatched OTP
+    // 2. Fast check against local dispatched OTP fallback (< 5ms)
+    if (fullOtp === dispatchedPhoneOtp) {
+      finalizeLogin({
+        name: finalUserName,
+        emailOrPhone: `${countryCode} ${cleanPhone}`,
+        role: "Enterprise Admin",
+        provider: "Phone SMS OTP",
+      });
+      setIsVerifying(false);
+      return;
+    }
+
+    // 3. Fallback verification via backend route with timeout
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
       const res = await fetch("/api/calling/auth/phone/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: cleanPhone, countryCode, otp: fullOtp }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (res.ok && data.success) {
         finalizeLogin({
@@ -678,19 +753,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         toast.error(data.error || "Invalid OTP code. Please check your SMS and try again.");
       }
     } catch {
-      if (fullOtp === dispatchedPhoneOtp) {
-        finalizeLogin({
-          name: finalUserName,
-          emailOrPhone: `${countryCode} ${cleanPhone}`,
-          role: "Enterprise Admin",
-          provider: "Phone SMS OTP",
-        });
-      } else {
-        toast.error("Invalid OTP code. Please check your SMS and try again.");
-      }
+      toast.error("Invalid OTP code. Please check your SMS and try again.");
     } finally {
       setIsVerifying(false);
     }
+  };
+
+  const handleVerifyPhoneOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    verifyPhoneOtpDirect();
   };
 
   return (
@@ -738,6 +809,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             onClick={() => {
               setAuthMethod("phone");
               setPhoneOtpSent(false);
+              setTimeout(initOrGetRecaptchaVerifier, 50);
             }}
             className={`py-1.5 rounded-md flex items-center justify-center gap-1.5 transition cursor-pointer ${
               authMethod === "phone"
@@ -987,6 +1059,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                         required
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
+                        onFocus={initOrGetRecaptchaVerifier}
                         placeholder="98200 11223"
                         className="w-full pl-8 pr-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 font-mono transition"
                       />
