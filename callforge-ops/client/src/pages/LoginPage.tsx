@@ -470,16 +470,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setIsSendingPhoneOtp(true);
 
     try {
-      // 1. Initialize or reuse invisible reCAPTCHA verifier for Firebase
-      if (!recaptchaVerifierRef.current) {
-        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, "recaptcha-phone-container", {
-          size: "invisible",
-          callback: () => {
-            // reCAPTCHA solved
-          },
-        });
-        await recaptchaVerifierRef.current.render();
+      // 1. Ensure reCAPTCHA container exists in DOM
+      let recaptchaContainer = document.getElementById("recaptcha-phone-container");
+      if (!recaptchaContainer) {
+        recaptchaContainer = document.createElement("div");
+        recaptchaContainer.id = "recaptcha-phone-container";
+        document.body.appendChild(recaptchaContainer);
       }
+
+      // Reset previous verifier if any
+      if (recaptchaVerifierRef.current) {
+        try {
+          recaptchaVerifierRef.current.clear();
+        } catch {}
+        recaptchaVerifierRef.current = null;
+      }
+
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaContainer, {
+        size: "invisible",
+        callback: () => {
+          // reCAPTCHA solved
+        },
+      });
 
       // 2. Dispatch real SMS via Firebase Phone Auth
       const confirmationResult = await signInWithPhoneNumber(
@@ -498,37 +510,41 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       });
       setTimeout(() => phoneOtpInputRefs.current[0]?.focus(), 150);
     } catch (fbErr: any) {
-      console.warn("Firebase Phone Auth notice:", fbErr);
-
-      // Fallback to internal API / demo if reCAPTCHA or domain issue occurs
-      try {
-        const res = await fetch("/api/calling/auth/phone/send-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: cleanPhone, countryCode }),
-        });
-        const data = await res.json();
-        if (data.accountName) {
-          setRegisteredAccountName(data.accountName);
-        }
-      } catch {}
-
-      if (cleanPhone === "8080562451" || cleanPhone.endsWith("8080562451")) {
-        setRegisteredAccountName("Sumit Khomne");
+      console.error("Firebase Phone Auth error:", fbErr);
+      if (recaptchaVerifierRef.current) {
+        try {
+          recaptchaVerifierRef.current.clear();
+        } catch {}
+        recaptchaVerifierRef.current = null;
       }
-      setPhoneOtpSent(true);
-      setPhoneTimer(45);
-      setPhoneOtpDigits(["", "", "", "", "", ""]);
 
+      const errCode = fbErr?.code || "";
       const errMsg = fbErr?.message || "";
-      if (errMsg.includes("auth/unauthorized-domain")) {
-        toast.info(`Firebase Notice: Domain needs authorization in Firebase Console. Code generated.`, {
-          duration: 8000,
+
+      if (errCode === "auth/operation-not-allowed") {
+        toast.error("Firebase Phone Auth Disabled!", {
+          description: "Please enable 'Phone' in Firebase Console > Authentication > Sign-in method.",
+          duration: 9000,
+        });
+      } else if (errCode === "auth/unauthorized-domain") {
+        toast.error("Unauthorized Domain!", {
+          description: "Add this domain to Firebase Console > Authentication > Settings > Authorized domains.",
+          duration: 9000,
+        });
+      } else if (errCode === "auth/quota-exceeded" || errCode === "auth/too-many-requests") {
+        toast.error("SMS Quota Exceeded / Too Many Requests", {
+          description: "Firebase daily SMS quota reached or rate-limited. Please wait or check billing.",
+          duration: 9000,
+        });
+      } else if (errCode === "auth/invalid-phone-number") {
+        toast.error("Invalid Phone Number", {
+          description: `Google rejected '${fullFormattedPhone}'. Ensure country code and 10 digits are correct.`,
+          duration: 9000,
         });
       } else {
-        toast.success(`Verification code dispatched to ${countryCode} ${cleanPhone}!`, {
-          description: `Please enter the 6-digit code received on your phone.`,
-          duration: 8000,
+        toast.error(`Firebase Error: ${errCode || "Failed to send SMS"}`, {
+          description: errMsg || "Check Firebase Console SMS settings.",
+          duration: 9000,
         });
       }
     } finally {
