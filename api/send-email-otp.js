@@ -63,7 +63,7 @@ export default async function handler(req, res) {
   try {
     const transporter = getOtpTransporter(senderUser, appPassword);
 
-    transporter.sendMail({
+    await transporter.sendMail({
       from: fromAddress,
       to: email.trim(),
       replyTo: "tatadialer7@gmail.com",
@@ -111,11 +111,8 @@ export default async function handler(req, res) {
           </div>
         </div>
       `,
-    }).then(() => {
-      console.log(`[SMTP Mailer] Real OTP email from '${fromAddress}' successfully sent to ${email}`);
-    }).catch((err) => {
-      console.error("[SMTP Mailer Error]:", err);
     });
+    console.log(`[SMTP Mailer] Real OTP email from '${fromAddress}' successfully sent to ${email}`);
 
     return res.status(200).json({
       success: true,

@@ -108,7 +108,7 @@ export default async function handler(req, res) {
   try {
     const transporter = getTransporter(senderUser, appPassword);
 
-    transporter.sendMail({
+    await transporter.sendMail({
       from: fromAddress,
       to: normalizedEmail,
       replyTo: "tatadialer7@gmail.com",
@@ -126,11 +126,8 @@ export default async function handler(req, res) {
           <p style="color: #71717a; font-size: 12px;">This code is valid for 10 minutes. Please enter it to complete your login.</p>
         </div>
       `,
-    }).then(() => {
-      console.log(`[SMTP Mailer] Real OTP email sent to ${normalizedEmail}`);
-    }).catch((err) => {
-      console.error("[SMTP Mailer Error]:", err);
     });
+    console.log(`[SMTP Mailer] Real OTP email sent to ${normalizedEmail}`);
   } catch (err) {
     console.error("[SMTP Mailer Error]:", err);
   }
