@@ -10,6 +10,7 @@
     "push": "git add . && git commit -m \"team update\" && git pull --rebase origin main && git push origin main && npm run deploy:vercel"
   },
   "dependencies": {
+    "firebase": "^11.4.0",
     "nodemailer": "^6.9.16"
   }
 }
