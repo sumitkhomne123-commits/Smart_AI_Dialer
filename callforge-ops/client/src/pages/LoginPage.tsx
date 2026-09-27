@@ -885,25 +885,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   </span>
                 </div>
 
-                {/* Fallback Email OTP Notice / Quick Fill */}
-                {dispatchedEmailOtp && (
-                  <div className="p-2 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center justify-between text-xs">
-                    <span className="text-[11px] text-zinc-400">
-                      Security OTP: <strong className="text-violet-300 font-mono tracking-widest text-xs">{dispatchedEmailOtp}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmailOtpDigits(dispatchedEmailOtp.split(""));
-                        toast.success("OTP auto-filled!");
-                      }}
-                      className="text-[10px] text-violet-400 hover:text-violet-300 font-medium bg-violet-950/50 border border-violet-800/40 px-2 py-0.5 rounded cursor-pointer transition"
-                    >
-                      Fill Code
-                    </button>
-                  </div>
-                )}
-
                 <p className="text-[10px] text-zinc-500 text-center">
                   Tip: Please check your Gmail <strong>Spam</strong> or <strong>Updates</strong> folder if not in primary inbox.
                 </p>
@@ -1071,25 +1052,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     )}
                   </span>
                 </div>
-
-                {/* Fallback Phone OTP Notice / Quick Fill */}
-                {dispatchedPhoneOtp && (
-                  <div className="p-2 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center justify-between text-xs">
-                    <span className="text-[11px] text-zinc-400">
-                      Security Code: <strong className="text-violet-300 font-mono tracking-widest text-xs">{dispatchedPhoneOtp}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPhoneOtpDigits(dispatchedPhoneOtp.split(""));
-                        toast.success("Code auto-filled!");
-                      }}
-                      className="text-[10px] text-violet-400 hover:text-violet-300 font-medium bg-violet-950/50 border border-violet-800/40 px-2 py-0.5 rounded cursor-pointer transition"
-                    >
-                      Fill Code
-                    </button>
-                  </div>
-                )}
 
                 {/* Verify & Enter Button */}
                 <button
