@@ -1,4 +1,11 @@
-CallForge Ops — Enterprise Autonomous Voice AI & Telephony Operations
+# Smart AI Dialer — Enterprise Calling Operations Console
+[![Vercel Deployment](https://img.shields.io/badge/Vercel-Live%20Deployment-black?style=for-the-badge&logo=vercel)](https://smart-ai-dialer-ranger22.vercel.app)
+[![Branch](https://img.shields.io/badge/Branch-main-blue?style=for-the-badge&logo=git)](https://github.com/sumitkhomne123-commits/Smart_AI_Dialer)
+
+> 🚀 **Official Live Production URL**: [https://smart-ai-dialer-ranger22.vercel.app](https://smart-ai-dialer-ranger22.vercel.app)  
+> *Notice: Team members should always use this official production URL instead of stale commit preview links. Every `git push` automatically updates this link.*
+
+## CallForge Ops — Enterprise Autonomous Voice AI & Telephony Operations
 Next-Generation India-First Cloud Contact Center Platform
 
 Executive Summary
