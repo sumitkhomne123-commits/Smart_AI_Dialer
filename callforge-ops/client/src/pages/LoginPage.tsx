@@ -460,6 +460,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   // ---------------------------------------------------------------------------
   const handleSendPhoneOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!fullName.trim()) {
+      toast.error("Please enter your name.");
+      return;
+    }
     const cleanPhone = phoneNumber.replace(/\D/g, "");
     if (cleanPhone.length < 10) {
       toast.error("Please enter a valid 10-digit mobile number.");
@@ -467,6 +471,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
 
     const fullFormattedPhone = `${countryCode}${cleanPhone}`;
+    setRegisteredAccountName(fullName.trim());
     setIsSendingPhoneOtp(true);
 
     try {
@@ -589,6 +594,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     setIsVerifying(true);
     const cleanPhone = phoneNumber.replace(/\D/g, "");
+    const finalUserName = fullName.trim() || registeredAccountName || "User";
 
     // 1. Confirm via Firebase Phone Auth if confirmationResult exists
     if (confirmationResultRef.current) {
@@ -597,7 +603,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         const user = userCredential.user;
         toast.success("Phone verified via Firebase!");
         finalizeLogin({
-          name: registeredAccountName || "Enterprise Admin",
+          name: finalUserName,
           emailOrPhone: user.phoneNumber || `${countryCode} ${cleanPhone}`,
           role: "Enterprise Admin",
           provider: "Firebase Phone SMS",
@@ -619,7 +625,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       const data = await res.json();
       if (res.ok && data.success) {
         finalizeLogin({
-          name: data.user?.name || registeredAccountName || "Sumit Khomne",
+          name: data.user?.name || finalUserName,
           emailOrPhone: `${countryCode} ${cleanPhone}`,
           role: "Enterprise Admin",
           provider: "Phone SMS OTP",
@@ -632,7 +638,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     } catch {
       if (fullOtp === dispatchedPhoneOtp) {
         finalizeLogin({
-          name: registeredAccountName || "Sumit Khomne",
+          name: finalUserName,
           emailOrPhone: `${countryCode} ${cleanPhone}`,
           role: "Enterprise Admin",
           provider: "Phone SMS OTP",
@@ -931,6 +937,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             {!phoneOtpSent ? (
               // Step 1: Phone input
               <form onSubmit={handleSendPhoneOtp} className="space-y-3">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User
+                      size={15}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+                    />
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Enter your name"
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-zinc-300 mb-1">
                     Phone Number
@@ -994,7 +1021,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     <div className="flex items-center gap-1.5 truncate">
                       <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
                       <span className="text-emerald-300 font-semibold text-xs truncate">
-                        Account: {registeredAccountName || "Sumit Khomne"}
+                        Account: {fullName.trim() || registeredAccountName || "User"}
                       </span>
                     </div>
                     <button
