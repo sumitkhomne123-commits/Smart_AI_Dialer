@@ -108,6 +108,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     return () => clearInterval(interval);
   }, [phoneOtpSent, phoneTimer]);
 
+  // Clean up reCAPTCHA verifier and container on unmount
+  useEffect(() => {
+    return () => {
+      if (recaptchaVerifierRef.current) {
+        try {
+          recaptchaVerifierRef.current.clear();
+        } catch {}
+        recaptchaVerifierRef.current = null;
+      }
+      const el = document.getElementById("recaptcha-phone-container");
+      if (el) {
+        try {
+          el.remove();
+        } catch {}
+      }
+    };
+  }, []);
+
   // Complete Login and Redirect
   const finalizeLogin = (user: { name: string; emailOrPhone: string; role: string; provider?: string }) => {
     localStorage.setItem("creatorai_auth_user", JSON.stringify(user));
@@ -477,11 +495,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setDispatchedPhoneOtp(backupOtp);
 
     try {
-      // 1. Ensure reCAPTCHA container exists in DOM
+      // 1. Ensure reCAPTCHA container exists directly on document.body (outside card containing block)
       let recaptchaContainer = document.getElementById("recaptcha-phone-container");
       if (!recaptchaContainer) {
         recaptchaContainer = document.createElement("div");
         recaptchaContainer.id = "recaptcha-phone-container";
+        document.body.appendChild(recaptchaContainer);
+      } else if (recaptchaContainer.parentElement !== document.body) {
         document.body.appendChild(recaptchaContainer);
       }
 
@@ -495,6 +515,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaContainer, {
         size: "invisible",
+        badge: "bottomright",
         callback: () => {
           // reCAPTCHA solved
         },
@@ -973,9 +994,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   </div>
                 </div>
 
-                {/* Firebase reCAPTCHA container */}
-                <div id="recaptcha-phone-container"></div>
-
                 <button
                   type="submit"
                   disabled={isSendingPhoneOtp}
@@ -1106,6 +1124,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
         {/* Google Official GSI Button Container (Single Clean Google Login) */}
         <div ref={googleBtnRef} className="w-full flex justify-center min-h-[44px]" />
+
+        {/* Security & reCAPTCHA Footer */}
+        <p className="text-[10px] text-zinc-500 text-center leading-relaxed pt-1">
+          Protected by Google reCAPTCHA &bull;{" "}
+          <a
+            href="https://policies.google.com/privacy"
+            target="_blank"
+            rel="noreferrer"
+            className="text-zinc-400 hover:text-zinc-300 underline"
+          >
+            Privacy
+          </a>{" "}
+          &bull;{" "}
+          <a
+            href="https://policies.google.com/terms"
+            target="_blank"
+            rel="noreferrer"
+            className="text-zinc-400 hover:text-zinc-300 underline"
+          >
+            Terms
+          </a>
+        </p>
 
       </div>
     </div>
