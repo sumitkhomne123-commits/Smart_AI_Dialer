@@ -495,23 +495,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setDispatchedPhoneOtp(backupOtp);
 
     try {
-      // 1. Ensure reCAPTCHA container exists directly on document.body (outside card containing block)
-      let recaptchaContainer = document.getElementById("recaptcha-phone-container");
-      if (!recaptchaContainer) {
-        recaptchaContainer = document.createElement("div");
-        recaptchaContainer.id = "recaptcha-phone-container";
-        document.body.appendChild(recaptchaContainer);
-      } else if (recaptchaContainer.parentElement !== document.body) {
-        document.body.appendChild(recaptchaContainer);
-      }
-
-      // Reset previous verifier if any
+      // 1. Clean up any existing verifier and remove its old container to prevent "already rendered" error
       if (recaptchaVerifierRef.current) {
         try {
           recaptchaVerifierRef.current.clear();
         } catch {}
         recaptchaVerifierRef.current = null;
       }
+      const existingContainer = document.getElementById("recaptcha-phone-container");
+      if (existingContainer) {
+        try {
+          existingContainer.remove();
+        } catch {}
+      }
+
+      // 2. Create a fresh clean DOM element directly on document.body
+      const recaptchaContainer = document.createElement("div");
+      recaptchaContainer.id = "recaptcha-phone-container";
+      document.body.appendChild(recaptchaContainer);
 
       recaptchaVerifierRef.current = new RecaptchaVerifier(auth, recaptchaContainer, {
         size: "invisible",
@@ -519,9 +520,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         callback: () => {
           // reCAPTCHA solved
         },
+        "expired-callback": () => {
+          if (recaptchaVerifierRef.current) {
+            try {
+              recaptchaVerifierRef.current.clear();
+            } catch {}
+            recaptchaVerifierRef.current = null;
+          }
+          const c = document.getElementById("recaptcha-phone-container");
+          if (c) {
+            try { c.remove(); } catch {}
+          }
+        },
       });
 
-      // 2. Dispatch real SMS via Firebase Phone Auth
+      // 3. Dispatch real SMS via Firebase Phone Auth
       const confirmationResult = await signInWithPhoneNumber(
         auth,
         fullFormattedPhone,
@@ -544,6 +557,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           recaptchaVerifierRef.current.clear();
         } catch {}
         recaptchaVerifierRef.current = null;
+      }
+      const oldCont = document.getElementById("recaptcha-phone-container");
+      if (oldCont) {
+        try {
+          oldCont.remove();
+        } catch {}
       }
 
       const errCode = fbErr?.code || "";
