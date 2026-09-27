@@ -762,25 +762,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
                 {/* Password */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-medium text-zinc-300">
-                      {isResetMode ? "New Account Password" : "Password"}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsResetMode(!isResetMode);
-                        if (!isResetMode) {
-                          toast.info("Password Reset Mode: Enter your new password and click Send OTP to verify.", {
-                            duration: 5000,
-                          });
-                        }
-                      }}
-                      className="text-[11px] text-violet-400 hover:text-violet-300 underline cursor-pointer"
-                    >
-                      {isResetMode ? "Back to Regular Login" : "Forgot / Reset Password?"}
-                    </button>
-                  </div>
+                  <label className="block text-xs font-medium text-zinc-300 mb-1">
+                    Password
+                  </label>
                   <div className="relative">
                     <Lock
                       size={15}
@@ -791,7 +775,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={isResetMode ? "Enter new password (min 6 chars)" : "Enter password"}
+                      placeholder="Enter password"
                       className="w-full pl-9 pr-9 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition"
                     />
                     <button
@@ -802,11 +786,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
                   </div>
-                  {isResetMode && (
-                    <p className="text-[10px] text-zinc-400 mt-1">
-                      An OTP code will be sent to your email to verify account ownership and save this new password.
-                    </p>
-                  )}
                 </div>
 
                 {/* Submit button: Verify Password & Send Security OTP */}
@@ -818,12 +797,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   {isSendingEmailOtp ? (
                     <>
                       <RefreshCw size={14} className="animate-spin" />
-                      <span>{isResetMode ? "Sending Reset OTP..." : "Verifying & Sending OTP..."}</span>
+                      <span>Verifying & Sending OTP...</span>
                     </>
                   ) : (
                     <>
                       <Lock size={14} />
-                      <span>{isResetMode ? "Send OTP to Reset Password" : "Verify Password & Send OTP"}</span>
+                      <span>Verify Password & Send OTP</span>
                       <ArrowRight size={14} />
                     </>
                   )}
