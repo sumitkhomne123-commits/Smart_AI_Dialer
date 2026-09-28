@@ -610,7 +610,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       });
       setTimeout(() => phoneOtpInputRefs.current[0]?.focus(), 150);
     } catch (fbErr: any) {
-      console.warn("Firebase Phone Auth notice:", fbErr);
+      console.error("Firebase Phone Auth error:", fbErr);
       if (recaptchaVerifierRef.current) {
         try {
           recaptchaVerifierRef.current.clear();
@@ -624,15 +624,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         } catch {}
       }
 
-      // Smooth fallback: transition to OTP verification screen with active backend code & test bypass
-      setPhoneOtpSent(true);
-      setPhoneTimer(60);
-      setPhoneOtpDigits(["", "", "", "", "", ""]);
-      toast.success("Security OTP dispatched to your mobile phone!", {
-        description: `Verification code sent to ${fullFormattedPhone}.`,
-        duration: 8000,
-      });
-      setTimeout(() => phoneOtpInputRefs.current[0]?.focus(), 100);
+      const errCode = fbErr?.code || "";
+      const errMsg = fbErr?.message || "";
+
+      if (errCode === "auth/operation-not-allowed") {
+        toast.error("SMS Region Blocked in Firebase", {
+          description: "India (+91) is not enabled in Firebase Console > Authentication > Settings > SMS region policy. Please enable India or add this phone as a test number.",
+          duration: 10000,
+        });
+      } else if (errCode === "auth/quota-exceeded" || errCode === "auth/too-many-requests") {
+        toast.error("SMS Quota Exceeded / Too Many Requests", {
+          description: "Firebase daily SMS quota reached. Please wait or configure test phone numbers in Firebase Console.",
+          duration: 9000,
+        });
+      } else if (errCode === "auth/invalid-phone-number") {
+        toast.error("Invalid Phone Number", {
+          description: `Google rejected '${fullFormattedPhone}'. Ensure country code and 10 digits are correct.`,
+          duration: 8000,
+        });
+      } else {
+        toast.error(`Firebase SMS Error: ${errCode || errMsg || "Failed to send SMS"}`, {
+          description: "Please check Firebase Console Phone settings.",
+          duration: 9000,
+        });
+      }
     } finally {
       setIsSendingPhoneOtp(false);
     }
@@ -1135,37 +1150,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       </button>
                     )}
                   </span>
-                </div>
-
-                {/* Telecom Carrier Delay & 1-Click Fast Access */}
-                <div className="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800 text-[11px] space-y-1.5">
-                  <div className="flex items-center justify-between text-zinc-400">
-                    <span>SMS delayed by telecom carrier?</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const testDigits = ["1", "2", "3", "4", "5", "6"];
-                        setPhoneOtpDigits(testDigits);
-                        verifyPhoneOtpDirect("123456");
-                      }}
-                      className="text-violet-400 hover:text-violet-300 font-medium underline cursor-pointer"
-                    >
-                      Instant Bypass (123456)
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-400 pt-1.5 border-t border-zinc-800/60">
-                    <span>Or prefer instant email OTP?</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAuthMethod("email");
-                        setPhoneOtpSent(false);
-                      }}
-                      className="text-emerald-400 hover:text-emerald-300 underline cursor-pointer"
-                    >
-                      Use Email Login
-                    </button>
-                  </div>
                 </div>
 
                 {/* Verify & Enter Button */}
