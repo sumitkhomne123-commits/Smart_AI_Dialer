@@ -31,6 +31,10 @@
       "destination": "/api/verify-phone-otp"
     },
     {
+      "source": "/api/health",
+      "destination": "/api/health"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
