@@ -52,6 +52,7 @@ export default async function handler(req, res) {
             sender: otpDevSender,
             phone: fullPhone,
             template: otpDevTemplate,
+            code: String(otp),
             code_length: String(otp).length,
           },
         }),
