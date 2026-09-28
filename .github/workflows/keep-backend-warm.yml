@@ -1,0 +1,19 @@
+name: Keep backend warm
+
+on:
+  schedule:
+    # Runs every 10 minutes to prevent serverless sleep / cold starts
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    # Allows manual trigger anytime from Actions tab
+
+jobs:
+  ping:
+    name: ping
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend Health Endpoint
+        run: |
+          echo "Pinging production backend to keep it warm..."
+          curl -s -m 20 "https://smart-ai-dialer-ranger22.vercel.app/api/health" || curl -s -m 15 "https://smart-ai-dialer-ranger22.vercel.app"
+          echo "Backend warm ping completed successfully at $(date -u)"
