@@ -10,26 +10,7 @@
       "source": "/api/calling/auth/email/verify-otp",
       "destination": "/api/calling-auth-email-verify"
     },
-    {
-      "source": "/api/calling/auth/phone/send-otp",
-      "destination": "/api/send-phone-otp"
-    },
-    {
-      "source": "/api/calling/auth/phone/verify-otp",
-      "destination": "/api/verify-phone-otp"
-    },
-    {
-      "source": "/api/send-email-otp",
-      "destination": "/api/send-email-otp"
-    },
-    {
-      "source": "/api/send-phone-otp",
-      "destination": "/api/send-phone-otp"
-    },
-    {
-      "source": "/api/verify-phone-otp",
-      "destination": "/api/verify-phone-otp"
-    },
+
     {
       "source": "/api/health",
       "destination": "/api/health"

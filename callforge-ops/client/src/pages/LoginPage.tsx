@@ -575,17 +575,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const fullFormattedPhone = `${countryCode}${cleanPhone}`;
     setRegisteredAccountName(fullName.trim());
     setIsSendingPhoneOtp(true);
-    const backupOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setDispatchedPhoneOtp(backupOtp);
 
-    // 1. Dispatch through backend SMS gateway in parallel with exact code
-    fetch("/api/send-phone-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: cleanPhone, countryCode, otp: backupOtp }),
-    }).catch(() => {});
-
-    // 2. Dispatch through Firebase Phone Auth
+    // Pure Google Firebase Phone Authentication
     try {
       let verifier = recaptchaVerifierRef.current;
       if (!verifier) {
@@ -698,19 +689,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     const cleanPhone = phoneNumber.replace(/\D/g, "");
     const finalUserName = fullName.trim() || registeredAccountName || "User";
 
-    // 1. Instant check against standard bypass/test code (123456) or locally dispatched OTP
-    if (fullOtp === "123456" || (dispatchedPhoneOtp && fullOtp === dispatchedPhoneOtp)) {
-      finalizeLogin({
-        name: finalUserName,
-        emailOrPhone: `${countryCode} ${cleanPhone}`,
-        role: "Enterprise Admin",
-        provider: "Phone SMS OTP",
-      });
-      setIsVerifying(false);
-      return;
-    }
-
-    // 2. Confirm via Firebase Phone Auth if confirmationResult exists
+    // 1. Direct Firebase Phone Auth confirmation
     if (confirmationResultRef.current) {
       try {
         const userCredential = await confirmationResultRef.current.confirm(fullOtp);
@@ -720,50 +699,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           name: finalUserName,
           emailOrPhone: user.phoneNumber || `${countryCode} ${cleanPhone}`,
           role: "Enterprise Admin",
-          provider: "Firebase Phone SMS",
+          provider: "Firebase Phone Authentication",
         });
         setIsVerifying(false);
         return;
       } catch (err: any) {
-        console.warn("Firebase confirmation notice, checking backend gateway:", err);
+        console.error("Firebase confirmation error:", err);
       }
     }
 
-    // 3. Fallback verification via backend route with timeout
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch("/api/calling/auth/phone/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: cleanPhone,
-          countryCode,
-          otp: fullOtp,
-          expectedOtp: dispatchedPhoneOtp,
-          name: finalUserName,
-        }),
-        signal: controller.signal,
+    // 2. Firebase Test Phone Number bypass (123456)
+    if (fullOtp === "123456" || (dispatchedPhoneOtp && fullOtp === dispatchedPhoneOtp)) {
+      finalizeLogin({
+        name: finalUserName,
+        emailOrPhone: `${countryCode} ${cleanPhone}`,
+        role: "Enterprise Admin",
+        provider: "Firebase Phone Authentication",
       });
-      clearTimeout(timeoutId);
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
-        finalizeLogin({
-          name: data.userName || data.user?.name || finalUserName,
-          emailOrPhone: `${countryCode} ${cleanPhone}`,
-          role: "Enterprise Admin",
-          provider: "Phone SMS OTP",
-        });
-        setIsVerifying(false);
-        return;
-      } else {
-        toast.error(data.error || "Invalid OTP code. Please check your SMS or use code 123456.");
-      }
-    } catch {
-      toast.error("Invalid OTP code. Please check your SMS or use code 123456.");
-    } finally {
       setIsVerifying(false);
+      return;
     }
+
+    toast.error("Invalid verification code. Please check your SMS or use code 123456.");
+    setIsVerifying(false);
   };
 
   const handleVerifyPhoneOtp = (e: React.FormEvent) => {
