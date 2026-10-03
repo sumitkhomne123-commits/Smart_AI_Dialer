@@ -1,0 +1,22 @@
+{
+  "name": "Smart AI Dialer Codespace",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "features": {},
+  "postCreateCommand": "npm install && npm --prefix callforge-ops install",
+  "forwardPorts": [5000, 3000],
+  "portsAttributes": {
+    "5000": {
+      "label": "CallForge Ops Backend & UI",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}
