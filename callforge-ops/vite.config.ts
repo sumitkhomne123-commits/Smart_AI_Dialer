@@ -178,6 +178,19 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("firebase")) return "vendor-firebase";
+            if (id.includes("lucide-react")) return "vendor-icons";
+            if (id.includes("jspdf")) return "vendor-pdf";
+            return "vendor";
+          }
+        },
+      },
+    },
   },
   server: {
     host: true,

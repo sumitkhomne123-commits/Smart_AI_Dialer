@@ -1,6 +1,7 @@
 {
   "name": "callforge-platform",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "build": "npm --prefix callforge-ops install --production=false && npm --prefix callforge-ops run build",
