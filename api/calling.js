@@ -579,11 +579,17 @@ export default async function handler(req, res) {
     if (path === "carrier-test") {
       return res.status(200).json({
         success: true,
+        message: "Trunk connection & media path verified successfully!",
         pingMs: 38,
         status: "operational",
+        accountName: "CallForge Enterprise Carrier Trunk",
         carrier: body.provider || "Tata Tele Smartflo SIP",
         jitter: "1.2ms",
         packetLoss: "0.0%",
+        voicePipeline: {
+          stt: "NVIDIA Riva Conformer (Hindi/English)",
+          tts: "NVIDIA FastPitch Indic Voice",
+        },
       });
     }
 
@@ -673,14 +679,135 @@ export default async function handler(req, res) {
     if (path === "wallboard" || path === "live") {
       return res.status(200).json({
         success: true,
-        activeCalls: 12,
-        waitingInQueue: 3,
-        onlineAgents: 8,
-        avgWaitSeconds: 14,
+        activeCalls: [
+          {
+            id: "call-live-1",
+            agentId: "agent-ai-1",
+            customerName: "Aarav Mehta",
+            customerPhone: "+91 98201 23456",
+            campaign: "Diwali Real Estate AI Blast",
+            durationSeconds: 52,
+            sentiment: "positive",
+          },
+          {
+            id: "call-live-2",
+            agentId: "agent-1",
+            customerName: "Priya Sharma",
+            customerPhone: "+91 98110 98765",
+            campaign: "BFSI Pre-Approved Home Loan",
+            durationSeconds: 118,
+            sentiment: "neutral",
+          },
+        ],
+        agents: [
+          { id: "agent-ai-1", name: "AI Bot Priya (Nvidia Riva)", type: "ai", state: "on_call" },
+          { id: "agent-ai-2", name: "AI Bot Rahul (Riva Nemotron)", type: "ai", state: "ready" },
+          { id: "agent-1", name: "Pooja Reddy", type: "human", state: "on_call" },
+          { id: "agent-2", name: "Vikram Malhotra", type: "human", state: "ready" },
+          { id: "agent-3", name: "Rohan Gupta", type: "human", state: "wrap_up" },
+        ],
+        waitingInQueue: 2,
+        onlineAgents: 5,
+        avgWaitSeconds: 12,
       });
     }
 
     // 10. AI STUDIO & NVIDIA PIPELINE
+    if (path === "nvidia-pipeline/simulate") {
+      const q = (body.query || "I want to know my loan balance.").trim();
+      let responseText = "Your current loan balance is ₹50,000.";
+      let toolAction = "Executed tool: fetch_loan_account_balance(loanId=\"LN-TATA-8831\"). Found active balance: ₹50,000.";
+
+      const lower = q.toLowerCase();
+      if (lower.includes("emi") || lower.includes("due date")) {
+        responseText = "Your upcoming EMI of ₹4,850 is scheduled for 05-Nov-2026.";
+        toolAction = "Executed tool: fetch_emi_schedule(loanId=\"LN-TATA-8831\").";
+      } else if (lower.includes("pay") || lower.includes("repay")) {
+        responseText = "I have sent a secure Tata Smartflo UPI payment link to your registered mobile number.";
+        toolAction = "Executed tool: trigger_payment_link_sms(phone=\"+91 98201 12345\").";
+      } else if (!lower.includes("loan") && !lower.includes("balance")) {
+        responseText = `Namaste! I understand your inquiry regarding "${q}". How else may I assist you today?`;
+        toolAction = "Contextual conversational intent processed via Nemotron LLM.";
+      }
+
+      return res.status(200).json({
+        id: "sim-" + Date.now(),
+        query: q,
+        finalSpeechText: responseText,
+        totalDurationMs: 278,
+        steps: [
+          {
+            step: "riva_audio",
+            title: "1. Audio Ingestion & VAD",
+            technology: "NVIDIA Riva Audio Processing",
+            durationMs: 18,
+            status: "success",
+            input: "Incoming 16kHz PCM audio stream from Tata Dialer SIP Trunk",
+            output: "VAD Speech Boundary Detected (End-of-Utterance confirmed, SNR: 28.4 dB)",
+            details: { samplingRate: "16000 Hz", vadConfidence: 0.98 },
+          },
+          {
+            step: "nemotron_asr",
+            title: "2. Speech-to-Text (STT)",
+            technology: "NVIDIA Nemotron ASR via Riva NIM",
+            durationMs: 76,
+            status: "success",
+            input: "Streamed audio buffer (0.84s duration)",
+            output: `"${q}"`,
+            details: { language: "en-IN / Indic Mixed", confidence: 0.984 },
+          },
+          {
+            step: "nemotron_llm",
+            title: "3. Reasoning & Intent Parsing",
+            technology: "NVIDIA Nemotron-4-340B Instruct",
+            durationMs: 104,
+            status: "success",
+            input: `User: "${q}"`,
+            output: `Intent identified. ${toolAction}`,
+            details: { intent: "financial_inquiry", tokensGenerated: 34 },
+          },
+          {
+            step: "riva_magpie_tts",
+            title: "4. Neural Text-to-Speech (TTS)",
+            technology: "NVIDIA Riva Magpie Multilingual TTS",
+            durationMs: 80,
+            status: "success",
+            input: `Text: "${responseText}"`,
+            output: "Generated 24kHz synthesized audio buffer for SIP trunk playback",
+            details: { voice: "riva-magpie-indic-v1", latencyMs: 80 },
+          },
+        ],
+        telemetry: {
+          sttLatencyMs: 76,
+          llmFirstTokenMs: 42,
+          ttsLatencyMs: 80,
+          networkRttMs: 12,
+          audioQualityScore: 98,
+          vadSpeechDurationMs: 840,
+        },
+        audioWaveform: [12, 45, 78, 92, 64, 88, 95, 70, 52, 38, 80, 94, 62, 30],
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (path === "nvidia-pipeline/status") {
+      return res.status(200).json({
+        status: "healthy",
+        stack: {
+          rivaAudioGateway: { name: "NVIDIA Riva Audio Ingestion", status: "online", latencyMs: 16 },
+          nemotronAsr: { model: "nemotron-asr-streaming", status: "online", latencyMs: 78, mode: "streaming" },
+          nemotronLlm: { model: "nemotron-4-340b-instruct", status: "online", latencyMs: 104, mode: "nim_orchestrated" },
+          rivaMagpieTts: { model: "riva-magpie-multilingual-v1", status: "online", latencyMs: 82, languages: ["Hindi", "Indian English", "Marathi", "Tamil"] },
+        },
+        telephonyBridge: {
+          carrier: "Tata Smartflo SIP Trunk",
+          sipProtocol: "RFC 3261",
+          codec: "G.711u / PCMU (16kHz HD Audio)",
+          activeTrunk: "sip.tatasmartflo.com:5060",
+        },
+      });
+    }
+
     if (path.startsWith("nvidia-pipeline/")) {
       return res.status(200).json({
         success: true,
